@@ -114,10 +114,6 @@ local function LCAdd(one,two,three)
 			LazyCrafter_VarsPerCharacter[skillName] = nil
 		else
 			LazyCrafter_VarsPerCharacter[skillName] = skillName
-			-- {
-			-- 	skillName = skillName,
-			-- 	skillIcon = skillIcon,
-			-- }
 		end
 		print('---')
 		for k,v in pairs(LazyCrafter_VarsPerCharacter) do print(v)	end
@@ -185,6 +181,7 @@ local function LCButton(spellID, professionID)
  	button.buttonID = buttonID
  	button.professionName = professionName
  	button.professionID = professionID
+ 	button.Filtered = false
 
 	button:SetScript("PreClick", LCButtonPreClick)
 	button:HookScript("OnClick", LCCraftItem)
@@ -192,6 +189,7 @@ local function LCButton(spellID, professionID)
 
 	if onCooldown(spellID) then
 		button:Hide()
+		button.Filtered = true
 	end
 	
 	if spellIcon then
@@ -205,6 +203,18 @@ end
 --------------------------------------------
 
 local function LCButtonFrameLockLayout(self, state)
+
+	print(self:GetNumChildren())
+	local test = self:GetChildren()
+
+	for k,v in pairs(test) do
+		print(k,v)
+	end
+
+	-- for i=1,self:GetNumChildren() do
+	-- 	print(type(test[i]))
+	-- end
+
 	if state then
 		self:SetBackdropBorderColor(66/255, 176/255, 207/255)
 		self:SetBackdropColor(80/255, 189/255, 220/255)
