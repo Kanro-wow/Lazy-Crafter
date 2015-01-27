@@ -3,6 +3,6 @@
 ## Notes: For the truely lazy crafter, add daily cooldowns to a list and click it on login
 ## Author: Kanro
 ## Version: 0.1
-## SavedVariables: OCC_SavedVars
-## SavedVariablesPerCharacter: OCC_SavedVarsPerCharacter
+## SavedVariables: LazyCrafter_Vars
+## SavedVariablesPerCharacter: LazyCrafter_VarsPerCharacter
 LazyCrafter.lua
