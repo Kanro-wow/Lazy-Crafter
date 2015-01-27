@@ -263,7 +263,12 @@ InterfaceOptions_AddCategory(panel)
 --------------------------------------------
 
 OCCButtonFrame:SetScript("OnEvent", function(self, event, ...) 
-	self[event](self,...)
+	if self[event] then
+		self[event](self,...)
+	else 
+		print(event..' has no function!')
+	end
+
 end)
 
 function OCCButtonFrame:PLAYER_REGEN_DISABLED()
@@ -355,6 +360,10 @@ function OCCButtonFrame:SPELL_UPDATE_COOLDOWN()
 		end
 		updatePositions()
 	end
+end 
+
+function OCCButtonFrame:PLAYER_ALIVE()
+
 end 
 
 --------------------------------------------
