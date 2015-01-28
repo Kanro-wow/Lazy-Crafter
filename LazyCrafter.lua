@@ -34,7 +34,39 @@ local function updatePositions()
 	end
 	
 	LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
+end
 
+--------------------------------------------
+
+local function onCooldown(spellID)
+	return
+end
+
+--------------------------------------------
+
+local function spellIDFromSkillLink(str)
+	local t = {}; local i = 1
+	local s = {}; local j = 1
+	for str in string.gmatch(str, "([^%:]+)") do t[i] = str; i=i+1 end
+	str = t[2]
+	for str in string.gmatch(str, "([^%[]+)") do s[j] = str; j=j+1 end
+	return(s[1])
+
+
+	-- local t={} ; i=1
+	-- local spellID
+	-- for str in string.gmatch(str, "([^%:]+)") do
+	--   i = i + 1
+	--   if i == 3 then
+	--   end
+	-- end
+
+	-- if false then
+	-- 	s.one = "|cffffd000|Henchant:168835|h[Tailoring: Hexweave Cloth]|h|r"
+	-- 	s.two = "|cffffd000|Htrade:Player-1403-054D8CBF:158758:197|h[Tailoring]|h|r"
+	-- end
+	-- print(spellID)
+	-- return spellID
 
 end
 
@@ -52,7 +84,6 @@ end
 --------------------------------------------
 
 local function OpenTradeSkill(self)
-	CloseTradeSkill()
 	if not(TradeSkillFrame and TradeSkillFrame:IsShown() and CURRENT_TRADESKILL==self.professionName) then
 		CastSpellByName(self.professionName)
 	else
@@ -125,10 +156,10 @@ end
 local function LCAdd()
 	local index = GetTradeSkillSelectionIndex()
 	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
-	local index = GetTradeSkillSelectionIndex()
-	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
 	local skillIcon = GetTradeSkillIcon(index)
+	local hyperLink = GetTradeSkillRecipeLink(index)
 	local professionName = GetTradeSkillLine()
+	local spellID = spellIDFromSkillLink(GetTradeSkillItemLink(index))
 
 	if LazyCrafter_VarsPerCharacter[skillName] then
 		LazyCrafter_VarsPerCharacter[skillName] = nil
@@ -137,9 +168,11 @@ local function LCAdd()
 		LazyCrafter_VarsPerCharacter[skillName] = {
 			icon = skillIcon,
 			name = skillName,
-			professionName = professionName
+			professionName = professionName,
+			hasCooldown = hasCooldown
 		}
-	
+		
+		if 
 		LCSkillButton(skillName, LazyCrafter_VarsPerCharacter[skillName], buttonCount) 
 	
 	end
@@ -222,7 +255,6 @@ function LCButtonFrame:ADDON_LOADED(addon)
 end 
 
 function LCButtonFrame:PLAYER_LOGIN()
-	
 	if not LazyCrafter_Vars then
 		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, OpenTradeSkillWindow = false, unlocked = false, buttonSize = 32	}
 	end
