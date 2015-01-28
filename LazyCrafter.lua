@@ -1,4 +1,4 @@
-local db = {-- First aid, id 158741	-- Tailoring	[168835] = 158758,	[125523] = 158758,	[176058] = 158758,	-- Engineering	[177054] = 158739,	[169080] = 158739,	-- Enchanting - 333	[169092] = 158716,	[177043] = 158716,		-- Inscription - 773	[169081] = 158748,	[177045] = 158748,	--Jewelcrafting - 755	[170700] = 158750,	[176087] = 158750,	--Leatherworking - 165	[171391] = 158752,	[176089] = 158752,	--Alchemy - 171	[156587] = 156606,	[175880] = 156606,	-- Blacksmithing - 164	[171690] = 158737,	[176090] = 158737,	-- Mining - 186}
+local db = {}-- First aid, id 158741	-- Tailoring	[168835] = 158758,	[125523] = 158758,	[176058] = 158758,	-- Engineering	[177054] = 158739,	[169080] = 158739,	-- Enchanting - 333	[169092] = 158716,	[177043] = 158716,		-- Inscription - 773	[169081] = 158748,	[177045] = 158748,	--Jewelcrafting - 755	[170700] = 158750,	[176087] = 158750,	--Leatherworking - 165	[171391] = 158752,	[176089] = 158752,	--Alchemy - 171	[156587] = 156606,	[175880] = 156606,	-- Blacksmithing - 164	[171690] = 158737,	[176090] = 158737,	-- Mining - 186}
 
 --------------------------------------------
 
@@ -85,8 +85,9 @@ local function LCAdd()
 		LazyCrafter_VarsPerCharacter[skillName] = nil
 	else
 		LazyCrafter_VarsPerCharacter[skillName] = {
-			skillIcon = skillIcon,
-			skillName = skillName,
+			icon = skillIcon,
+			name = skillName,
+			professionIndex = index,
 			professionName = professionName
 		}
 	end
@@ -129,7 +130,7 @@ end
 local function LCCraftItem(self)
 	for i=1,GetNumTradeSkills()do
 		local craftName,_,_=GetTradeSkillInfo(i)
-		if craftName==self.spellName then
+		if craftName==self.skillName then
 			DoTradeSkill(i,1)
 		end
 	end
@@ -138,9 +139,10 @@ end
 --------------------------------------------
 
 local function LCButtonPreClick(self)
+	print(self.professionName)
 	if not(TradeSkillFrame and TradeSkillFrame:IsShown() and CURRENT_TRADESKILL==self.professionName) then
 		self:SetAttribute("type", "spell")
-		self:SetAttribute("spell", self.professionID)
+		self:SetAttribute("spell", self.professionName)
 	else
 		self:SetAttribute("spell",nil)			
 	end
@@ -148,14 +150,14 @@ end
 
 --------------------------------------------
 
-local function LCSkillButton(skillName, skillProperties, buttonCount) 
+local function LCSkillButton(skillName, skill, buttonCount) 
 	local button = createButton(buttonCount)
 
 	button.skillName = skillName
 	button.buttonID = buttonID
-	button.professionName = professionName
+	button.professionName = skill.professionName
 	button.Filtered = false
-	button.icon:SetTexture(skillProperties.skillIcon)
+	button.icon:SetTexture(skill.icon)
 
 	button:SetScript("PreClick", LCButtonPreClick)
 	button:HookScript("OnClick", LCCraftItem)
@@ -232,34 +234,34 @@ function LCButtonFrame:ADDON_LOADED(addon)
 end 
 
 function LCButtonFrame:PLAYER_LOGIN()
-	local buttonCount = 1
-	for skillName, skillProperties in next, LazyCrafter_VarsPerCharacter do
-		local button = buttons[skillName]
-		if not button then
-			LCSkillButton(skillName, skillProperties, buttonCount)
-			buttonCount = buttonCount + 1
-		else
-			button:Show()
-		end
-	end
 	
+	if not LazyCrafter_Vars then
+		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, unlocked = false, buttonSize = 32	}
+	end
+
 	if not LazyCrafter_VarsPerCharacter then
 		LazyCrafter_VarsPerCharacter = {}
 	end
 
-	updatePositions()
+	if LazyCrafter_VarsPerCharacter then
+		local buttonCount = 1
 
+		for skillName, skillProperties in next, LazyCrafter_VarsPerCharacter do
+			-- local button = buttons[skillName]
 
-
-	if not LazyCrafter_Vars then
-		LazyCrafter_Vars = {
-			x = 200,
-			y = 200,
-			hideOnCombat = true,
-			hideOnInstance = true,
-			unlocked = false,
-			buttonSize = 32
-		}
+			if not buttons[skillName] then
+				button = LCSkillButton(skillName, skillProperties, buttonCount)
+				buttonCount = buttonCount + 1
+			else
+				button:Show()
+			end
+		end
+		
+		if not LazyCrafter_VarsPerCharacter then
+			LazyCrafter_VarsPerCharacter = {}
+		end
+	
+		updatePositions()
 	end
 
 	self:SetHeight(LazyCrafter_Vars.buttonSize)
