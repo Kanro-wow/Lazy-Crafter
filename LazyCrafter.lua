@@ -23,7 +23,6 @@ local function updatePositions()
 	for skillName, button in next, buttons do
 		if button:IsShown() then
 			visibleButtonCount = visibleButtonCount + 1
-			LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
 			button:ClearAllPoints()
 			if visibleButtonCount == 1 then
 				button:SetPoint("BOTTOMLEFT",LCButtonFrame)
@@ -33,8 +32,31 @@ local function updatePositions()
 			lastButton = button
 		end
 	end
+	
+	LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
 
 
+end
+
+--------------------------------------------
+
+local function LCCraftItem(self)
+	for i=1,GetNumTradeSkills()do
+		local craftName,_,_=GetTradeSkillInfo(i)
+		if craftName==self.skillName then
+			DoTradeSkill(i,1)
+		end
+	end
+end
+
+--------------------------------------------
+
+local function OpenTradeSkill(self)
+	CloseTradeSkill()
+	if not(TradeSkillFrame and TradeSkillFrame:IsShown() and CURRENT_TRADESKILL==self.professionName) then
+		CastSpellByName(self.professionName)
+	else
+	end
 end
 
 --------------------------------------------
@@ -46,6 +68,11 @@ end
 --------------------------------------------
 
 local function createButton(buttonID)
+	buttonID = 1
+	for k in next, buttons do
+		buttonID = buttonID + 1
+	end
+
 	local button = CreateFrame("Button", "LC_"..buttonID, LCButtonFrame, "SecureActionButtonTemplate")
 	button:SetSize(LazyCrafter_Vars.buttonSize,LazyCrafter_Vars.buttonSize)
 
@@ -75,7 +102,29 @@ end
 
 --------------------------------------------
 
+local function LCSkillButton(skillName, skill, buttonCount) 
+	local button = createButton(buttonCount)
+
+	button.skillName = skillName
+	button.buttonID = buttonID
+	button.professionName = skill.professionName
+	button.Filtered = false
+	button.icon:SetTexture(skill.icon)
+
+	button:SetScript("PreClick", OpenTradeSkill)
+	button:SetScript("OnClick", LCCraftItem)
+	
+	if not LazyCrafter_Vars.OpenTradeSkillWindow then
+		button:SetScript("PostClick", CloseTradeSkill)
+	end
+	buttons[skillName] = button
+end
+
+--------------------------------------------
+
 local function LCAdd()
+	local index = GetTradeSkillSelectionIndex()
+	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
 	local index = GetTradeSkillSelectionIndex()
 	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
 	local skillIcon = GetTradeSkillIcon(index)
@@ -83,25 +132,19 @@ local function LCAdd()
 
 	if LazyCrafter_VarsPerCharacter[skillName] then
 		LazyCrafter_VarsPerCharacter[skillName] = nil
+		buttons[skillName]:Hide()
 	else
 		LazyCrafter_VarsPerCharacter[skillName] = {
 			icon = skillIcon,
 			name = skillName,
-			professionIndex = index,
 			professionName = professionName
 		}
+	
+		LCSkillButton(skillName, LazyCrafter_VarsPerCharacter[skillName], buttonCount) 
+	
 	end
-
+	
 	updatePositions()
-
-	print('---')
-	for k,v in pairs(LazyCrafter_VarsPerCharacter) do 
-		print(v.skillName)
-		local _,_,enable = GetSpellCooldown(v.skillName)
-		print(enable)	
-	end
-	print('---')
-
 end
 
 --------------------------------------------
@@ -123,61 +166,6 @@ local function createButtonFrameskill()
 		button:SetScript ("OnClick", LCAdd)
 	else
 	end
-end
-
---------------------------------------------
-
-local function LCCraftItem(self)
-	for i=1,GetNumTradeSkills()do
-		local craftName,_,_=GetTradeSkillInfo(i)
-		if craftName==self.skillName then
-			DoTradeSkill(i,1)
-		end
-	end
-end
-
---------------------------------------------
-
-local function LCButtonPreClick(self)
-	print(self.professionName)
-	if not(TradeSkillFrame and TradeSkillFrame:IsShown() and CURRENT_TRADESKILL==self.professionName) then
-		self:SetAttribute("type", "spell")
-		self:SetAttribute("spell", self.professionName)
-	else
-		self:SetAttribute("spell",nil)			
-	end
-end
-
---------------------------------------------
-
-local function LCSkillButton(skillName, skill, buttonCount) 
-	local button = createButton(buttonCount)
-
-	button.skillName = skillName
-	button.buttonID = buttonID
-	button.professionName = skill.professionName
-	button.Filtered = false
-	button.icon:SetTexture(skill.icon)
-
-	button:SetScript("PreClick", LCButtonPreClick)
-	button:HookScript("OnClick", LCCraftItem)
-	button:SetScript("PostClick", CloseTradeSkill)
-	button:Show()
-	
-	buttons[skillName] = button
-
-
-	-- if onCooldown(spellID) then
-	-- 	button:Hide()
-	-- 	button.Filtered = true
-	-- end
-	
-	-- if spellIcon then
-	-- 	button.icon:SetTexture(spellIcon)
-	-- else
-	-- 	button.icon:SetTexture([[Interface\Icons\inv_misc_questionmark]])
-	-- end
-	-- buttons[skillName] = button
 end
 
 --------------------------------------------
@@ -236,7 +224,7 @@ end
 function LCButtonFrame:PLAYER_LOGIN()
 	
 	if not LazyCrafter_Vars then
-		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, unlocked = false, buttonSize = 32	}
+		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, OpenTradeSkillWindow = false, unlocked = false, buttonSize = 32	}
 	end
 
 	if not LazyCrafter_VarsPerCharacter then
