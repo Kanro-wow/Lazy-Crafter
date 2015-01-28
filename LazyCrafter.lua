@@ -1,32 +1,4 @@
-local db = {
-	-- First aid, id 158741
-	-- Tailoring
-	[168835] = 158758,
-	[125523] = 158758,
-	[176058] = 158758,
-	-- Engineering
-	[177054] = 158739,
-	[169080] = 158739,
-	-- Enchanting - 333
-	[169092] = 158716,
-	[177043] = 158716,	
-	-- Inscription - 773
-	[169081] = 158748,
-	[177045] = 158748,
-	--Jewelcrafting - 755
-	[170700] = 158750,
-	[176087] = 158750,
-	--Leatherworking - 165
-	[171391] = 158752,
-	[176089] = 158752,
-	--Alchemy - 171
-	[156587] = 156606,
-	[175880] = 156606,
-	-- Blacksmithing - 164
-	[171690] = 158737,
-	[176090] = 158737,
-	-- Mining - 186
-}
+local db = {-- First aid, id 158741	-- Tailoring	[168835] = 158758,	[125523] = 158758,	[176058] = 158758,	-- Engineering	[177054] = 158739,	[169080] = 158739,	-- Enchanting - 333	[169092] = 158716,	[177043] = 158716,		-- Inscription - 773	[169081] = 158748,	[177045] = 158748,	--Jewelcrafting - 755	[170700] = 158750,	[176087] = 158750,	--Leatherworking - 165	[171391] = 158752,	[176089] = 158752,	--Alchemy - 171	[156587] = 156606,	[175880] = 156606,	-- Blacksmithing - 164	[171690] = 158737,	[176090] = 158737,	-- Mining - 186}
 
 --------------------------------------------
 
@@ -48,7 +20,7 @@ local function updatePositions()
 	local visibleButtonCount = 0
 	local lastButton 
 
-	for spellID, button in next, buttons do
+	for skillName, button in next, buttons do
 		if button:IsShown() then
 			visibleButtonCount = visibleButtonCount + 1
 			LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
@@ -88,13 +60,13 @@ local function createButton(buttonID)
 	button:SetBackdropColor(26/255, 26/255, 26/255)
 	
 	local hover = button:CreateTexture(nil, "HIGHLIGHT")
-	hover:SetTexture(1, 1, 1, 0.3)
+	hover:SetTexture(0.8, 0.8, 0.8, 0.3)
 	hover:SetAllPoints(icon)
 	button:SetHighlightTexture(hover)
 	
 	local pushed = button:CreateTexture(nil, "OVERLAY")
 	pushed:SetTexture([[Interface\ChatFrame\ChatFrameBackground]])
-	pushed:SetVertexColor(0.9, 0.8, 0.1, 0.3)
+	pushed:SetVertexColor(0.9, 0.8, 0.1, 0.6)
 	pushed:SetAllPoints(icon)
 	button:SetPushedTexture(pushed)
 
@@ -103,24 +75,32 @@ end
 
 --------------------------------------------
 
-local function LCAdd(one,two,three)
+local function LCAdd()
 	local index = GetTradeSkillSelectionIndex()
 	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
-	if not skillType then
-		local skillIcon = GetTradeSkillIcon(index)
-		updatePositions()
+	local skillIcon = GetTradeSkillIcon(index)
+	local professionName = GetTradeSkillLine()
 
-		if LazyCrafter_VarsPerCharacter[skillName] then
-			LazyCrafter_VarsPerCharacter[skillName] = nil
-		else
-			LazyCrafter_VarsPerCharacter[skillName] = skillName
-		end
-		print('---')
-		for k,v in pairs(LazyCrafter_VarsPerCharacter) do print(v)	end
-			print('---')
+	if LazyCrafter_VarsPerCharacter[skillName] then
+		LazyCrafter_VarsPerCharacter[skillName] = nil
 	else
-		print("Error. This ability does not craft, but rather enchants, engrave, tinkers, etc.")
+		LazyCrafter_VarsPerCharacter[skillName] = {
+			skillIcon = skillIcon,
+			skillName = skillName,
+			professionName = professionName
+		}
 	end
+
+	updatePositions()
+
+	print('---')
+	for k,v in pairs(LazyCrafter_VarsPerCharacter) do 
+		print(v.skillName)
+		local _,_,enable = GetSpellCooldown(v.skillName)
+		print(enable)	
+	end
+	print('---')
+
 end
 
 --------------------------------------------
@@ -168,53 +148,39 @@ end
 
 --------------------------------------------
 
-local function LCButton(spellID, professionID)
-	local buttonID = #buttons + 1
-	local spellName = GetSpellInfo(spellID)
-	local _,_,_,_,_,_,_,_,_,spellIcon = GetItemInfo(spellName)
-	local professionName = GetSpellInfo(professionID)
-	
-	local button = createButton(buttonID)
+local function LCSkillButton(skillName, skillProperties, buttonCount) 
+	local button = createButton(buttonCount)
 
-	button.spellName = spellName
- 	button.spellID = spellID
- 	button.buttonID = buttonID
- 	button.professionName = professionName
- 	button.professionID = professionID
- 	button.Filtered = false
+	button.skillName = skillName
+	button.buttonID = buttonID
+	button.professionName = professionName
+	button.Filtered = false
+	button.icon:SetTexture(skillProperties.skillIcon)
 
 	button:SetScript("PreClick", LCButtonPreClick)
 	button:HookScript("OnClick", LCCraftItem)
 	button:SetScript("PostClick", CloseTradeSkill)
-
-	if onCooldown(spellID) then
-		button:Hide()
-		button.Filtered = true
-	end
+	button:Show()
 	
-	if spellIcon then
-		button.icon:SetTexture(spellIcon)
-	else
-		button.icon:SetTexture([[Interface\Icons\inv_misc_questionmark]])
-	end
-	buttons[spellID] = button
+	buttons[skillName] = button
+
+
+	-- if onCooldown(spellID) then
+	-- 	button:Hide()
+	-- 	button.Filtered = true
+	-- end
+	
+	-- if spellIcon then
+	-- 	button.icon:SetTexture(spellIcon)
+	-- else
+	-- 	button.icon:SetTexture([[Interface\Icons\inv_misc_questionmark]])
+	-- end
+	-- buttons[skillName] = button
 end
 
 --------------------------------------------
 
 local function LCButtonFrameLockLayout(self, state)
-
-	print(self:GetNumChildren())
-	local test = self:GetChildren()
-
-	for k,v in pairs(test) do
-		print(k,v)
-	end
-
-	-- for i=1,self:GetNumChildren() do
-	-- 	print(type(test[i]))
-	-- end
-
 	if state then
 		self:SetBackdropBorderColor(66/255, 176/255, 207/255)
 		self:SetBackdropColor(80/255, 189/255, 220/255)
@@ -266,19 +232,25 @@ function LCButtonFrame:ADDON_LOADED(addon)
 end 
 
 function LCButtonFrame:PLAYER_LOGIN()
-	for spellID, professionID in next, db do
-		local button = buttons[spellID]
+	local buttonCount = 1
+	for skillName, skillProperties in next, LazyCrafter_VarsPerCharacter do
+		local button = buttons[skillName]
 		if not button then
-			LCButton(spellID, professionID)
-		elseif not onCooldown(spellID) then
+			LCSkillButton(skillName, skillProperties, buttonCount)
+			buttonCount = buttonCount + 1
+		else
 			button:Show()
 		end
 	end
-
-	-- LazyCrafter_Vars = nil
+	
 	if not LazyCrafter_VarsPerCharacter then
 		LazyCrafter_VarsPerCharacter = {}
 	end
+
+	updatePositions()
+
+
+
 	if not LazyCrafter_Vars then
 		LazyCrafter_Vars = {
 			x = 200,
@@ -318,8 +290,7 @@ function LCButtonFrame:PLAYER_LOGIN()
 	self:RegisterEvent("PLAYER_DEAD")
 	self:RegisterEvent("ADDON_LOADED")
 	self:Show()
-	
-	updatePositions()
+
 
 	SLASH_MYADDON1 = "/lc"
 	SLASH_MYADDON2 = "/lazycrafter"
@@ -347,7 +318,7 @@ function LCButtonFrame:SPELL_UPDATE_COOLDOWN()
 			if onCooldown(spellID) then
 				buttons[spellID]:Hide()
 			elseif not buttons[spellID] then
-				LCButton(spellID, professionID)
+				LCButtonskill(skillName, skillProperties)
 			end
 		end
 		updatePositions()
