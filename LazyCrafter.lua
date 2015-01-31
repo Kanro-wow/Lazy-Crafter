@@ -21,7 +21,7 @@ local function updatePositions()
 	local lastButton 
 
 	for skillName, button in next, buttons do
-		if button:IsShown() then
+		if not button.Filtered then
 			visibleButtonCount = visibleButtonCount + 1
 			button:ClearAllPoints()
 			if visibleButtonCount == 1 then
@@ -32,26 +32,50 @@ local function updatePositions()
 			lastButton = button
 		end
 	end
-	
-	LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
+	print(visibleButtonCount)
+	if visibleButtonCount > 0 then
+		LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
+		LCButtonFrame:Show()
+	else
+		LCButtonFrame:Hide()
+	end
+end
+
+--------------------------------------------
+
+local function checkProfessionChange()
+	local c = {}
+	c[1],c[2] = GetProfessions()
+	if c[1] then c[1] = GetProfessionInfo(c[1]) end
+	if c[2] then c[2] = GetProfessionInfo(c[2])	end
+
+	for k,v in next, LazyCrafter_VarsPerCharacter do
+		if not (v.professionName == c[1] or v.professionName == c[2]) then
+			LazyCrafter_VarsPerCharacter[k] = nil
+			buttons[k]:Hide()
+			buttons[k] = nil
+		else
+		end
+	end
+	updatePositions()
 end
 
 --------------------------------------------
 
 local function onCooldown(spellID)
-	print(spellID)
 	return GetSpellCooldown(spellID) ~= 0
 end
 
 --------------------------------------------
 
 local function spellIDFromRecipeLink(str)
-	local t = {}; local i = 1
-	local s = {}; local j = 1
-	for str in string.gmatch(str, "([^%:]+)") do t[i] = str; i=i+1 end
-	str = t[2]
-	for str in string.gmatch(str, "([^%[]+)") do s[j] = str; j=j+1 end
-	return(s[1])
+
+	local s = {}; local i = 1
+	local t = {}; local j = 1
+	for str in string.gmatch(str, "([^%:]+)") do s[i] = str; i=i+1 end
+	str = s[2]
+	for str in string.gmatch(str, "([^%D]+)") do t[j] = str; j=j+1 end
+	return t[1]
 end
 
 --------------------------------------------
@@ -95,12 +119,12 @@ local function createButton(buttonID)
 	button:SetBackdropBorderColor(79/255, 79/255, 79/255)
 	button:SetBackdropColor(26/255, 26/255, 26/255)
 	
-	local hover = button:CreateTexture(nil, "HIGHLIGHT")
+	local hover = button:CreateTexture(nil, "OVERLAY")
 	hover:SetTexture(0.8, 0.8, 0.8, 0.3)
 	hover:SetAllPoints(icon)
 	button:SetHighlightTexture(hover)
 	
-	local pushed = button:CreateTexture(nil, "OVERLAY")
+	local pushed = button:CreateTexture(nil, "HIGHLIGHT")
 	pushed:SetTexture([[Interface\ChatFrame\ChatFrameBackground]])
 	pushed:SetVertexColor(0.9, 0.8, 0.1, 0.6)
 	pushed:SetAllPoints(icon)
@@ -111,22 +135,32 @@ end
 
 --------------------------------------------
 
-local function LCSkillButton(skillName, skill, buttonCount) 
+local function LCSkillButton(skill, buttonCount) 
 	local button = createButton(buttonCount)
 
-	button.skillName = skillName
+	button.skillName = skill.name
+	button.spellID = skill.spellID
 	button.buttonID = buttonID
 	button.professionName = skill.professionName
-	button.Filtered = false
 	button.icon:SetTexture(skill.icon)
-
 	button:SetScript("PreClick", OpenTradeSkill)
 	button:SetScript("OnClick", LCCraftItem)
-	
+
+	if onCooldown(skill.spellID) then
+		button.Filtered = true
+	else
+		button.Filtered = false
+	end
+
+	if LCButtonFrame.Unlocked then
+		button:Hide()
+	end
+
 	if not LazyCrafter_Vars.OpenTradeSkillWindow then
 		button:SetScript("PostClick", CloseTradeSkill)
 	end
-	buttons[skillName] = button
+	buttons[skill.name] = button
+
 end
 
 --------------------------------------------
@@ -142,25 +176,18 @@ local function LCAdd()
 	if LazyCrafter_VarsPerCharacter[skillName] then
 		LazyCrafter_VarsPerCharacter[skillName] = nil
 		buttons[skillName]:Hide()
+		buttons[skillName] = nil
 	else
 		LazyCrafter_VarsPerCharacter[skillName] = {
 			icon = skillIcon,
 			name = skillName,
 			professionName = professionName,
-			hasCooldown = hasCooldown
+			spellID = spellID,
 		}
-		
-		print(spellID)
-		print(onCooldown(spellID))
 
-		if onCooldown(spellID) then
-			print(skillName.." has been added! It's on cooldown, so it is not shown on the list!")
-		else
-			LCSkillButton(skillName, LazyCrafter_VarsPerCharacter[skillName], buttonCount) 
-		end
-	
+		LCSkillButton(LazyCrafter_VarsPerCharacter[skillName], buttonCount) 
+		
 	end
-	
 	updatePositions()
 end
 
@@ -180,20 +207,37 @@ local function createButtonFrameskill()
 		button:SetNormalFontObject(_G["GameFontNormalSmall"])
 		button:SetHighlightFontObject(_G["GameFontNormalSmall"])
 		button:SetDisabledFontObject(_G["GameFontNormalSmall"])
+		button:RegisterEvent("TRADE_SKILL_SHOW")
+
 		button:SetScript ("OnClick", LCAdd)
+		button:SetScript("OnEvent", function() 
+			if IsTradeSkillGuild() or IsTradeSkillLinked() then
+				button:Hide()
+			else
+				button:Show()
+			end
+		end)
 	else
 	end
 end
 
---------------------------------------------
+local function createButtons()
+	if LazyCrafter_VarsPerCharacter then
+		local buttonCount = 1
+		for skillName, skill in next, LazyCrafter_VarsPerCharacter do
+			if not buttons[skillName] then
+				button = LCSkillButton(skill, buttonCount)
+				buttonCount = buttonCount + 1
+			else
+				button:Show()
+			end
+		end
 
-local function LCButtonFrameLockLayout(self, state)
-	if state then
-		self:SetBackdropBorderColor(66/255, 176/255, 207/255)
-		self:SetBackdropColor(80/255, 189/255, 220/255)
-	else
-		self:SetBackdropBorderColor(79/255, 79/255, 79/255)
-		self:SetBackdropColor(26/255, 26/255, 26/255)
+		if not LazyCrafter_VarsPerCharacter then
+			LazyCrafter_VarsPerCharacter = {}
+		end
+	
+		updatePositions()
 	end
 end
 
@@ -202,6 +246,25 @@ end
 local function LCButtonFrameUnlock(self, state)
 	self:EnableMouse(state)
 	self:SetMovable(state)
+	self.Unlocked = state
+end
+
+--------------------------------------------
+
+local function LCButtonFrameLockLayout(self, state)
+	if state then
+		self:SetBackdropColor(80/255, 189/255, 220/255)
+		for k,v in next, buttons do
+			v:Hide()
+		end
+	else
+		self:SetBackdropColor(26/255, 26/255, 26/255)
+		for k,v in next, buttons do
+			if not v.filtered then
+				v:Show()
+			end
+		end
+	end
 end
 
 --------------------------------------------
@@ -214,14 +277,6 @@ LCButtonFrame:SetScript("OnEvent", function(self, event, ...)
 	end
 
 end)
-
-function LCButtonFrame:PLAYER_REGEN_DISABLED()
-	self:Hide()
-end 
-
-function LCButtonFrame:PLAYER_REGEN_ENABLED()
-	self:Show()
-end 
 
 function LCButtonFrame:PLAYER_ENTERING_WORLD()
 	createButtonFrameskill()
@@ -239,6 +294,9 @@ function LCButtonFrame:ADDON_LOADED(addon)
 end 
 
 function LCButtonFrame:PLAYER_LOGIN()
+
+	checkProfessionChange()
+
 	if not LazyCrafter_Vars then
 		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, OpenTradeSkillWindow = false, unlocked = false, buttonSize = 32	}
 	end
@@ -247,96 +305,89 @@ function LCButtonFrame:PLAYER_LOGIN()
 		LazyCrafter_VarsPerCharacter = {}
 	end
 
-	if LazyCrafter_VarsPerCharacter then
-		local buttonCount = 1
-
-		for skillName, skillProperties in next, LazyCrafter_VarsPerCharacter do
-			-- local button = buttons[skillName]
-
-			if not buttons[skillName] then
-				button = LCSkillButton(skillName, skillProperties, buttonCount)
-				buttonCount = buttonCount + 1
-			else
-				button:Show()
-			end
-		end
-		
-		if not LazyCrafter_VarsPerCharacter then
-			LazyCrafter_VarsPerCharacter = {}
-		end
-	
-		updatePositions()
-	end
+	createButtons()
 
 	self:SetHeight(LazyCrafter_Vars.buttonSize)
 	self:EnableMouse(LazyCrafter_Vars.unlocked)
 	self:SetMovable(LazyCrafter_Vars.unlocked)
+	self.Unlocked = LazyCrafter_Vars.unlocked
 	self:SetClampedToScreen(true)
 	self:RegisterForDrag("LeftButton")
+	
 	self:SetScript("OnDragStart",self.StartMoving)
 	self:SetScript("OnDragStop", function()
 		self:StopMovingOrSizing()
 		LazyCrafter_Vars.x = self:GetLeft()
 		LazyCrafter_Vars.y = self:GetBottom()
-
-		-- LazyCrafter_Vars.points = {self:GetPoint()}
 	end)
-	
-	-- self:SetPoint(unpack(LazyCrafter_Vars.points))
+
 	self:SetPoint("BOTTOMLEFT", LazyCrafter_Vars.x,LazyCrafter_Vars.y)
 	self:SetBackdrop(backdropFrame)
 
 	LCButtonFrameLockLayout(self, LazyCrafter_Vars.unlocked)
 
-	self:RegisterEvent("PLAYER_REGEN_DISABLED")
-	self:RegisterEvent("PLAYER_REGEN_ENABLED")
-	self:RegisterEvent("PLAYER_ENTERING_WORLD")
-	self:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-	self:RegisterEvent("PLAYER_ALIVE")
-	self:RegisterEvent("PLAYER_DEAD")
-	self:RegisterEvent("ADDON_LOADED")
+	local eventsTable = {"PLAYER_REGEN_DISABLED","PLAYER_REGEN_ENABLED","PLAYER_ENTERING_WORLD","SPELL_UPDATE_COOLDOWN","PLAYER_ALIVE","PLAYER_DEAD","ADDON_LOADED","SKILL_LINES_CHANGED"}
+	
+	for k,v in next, eventsTable do
+		self:RegisterEvent(v)
+	end
+	
 	self:Show()
-
-
-	SLASH_MYADDON1 = "/lc"
-	SLASH_MYADDON2 = "/lazycrafter"
-	SlashCmdList["MYADDON"] = function(msg, editbox)
-		if not msg:match("%S") then 
-		  print("Slash command usage for '/lc' or '/lazycrafter':")
-		  print("  /lc unlock - Let's you move around the bar")
-		  print("  /lc lock - Let's you lock the bar in place")
-	  end
-	  if msg == "unlock" then
-	  	LCButtonFrameUnlock(LCButtonFrame, true)
-			LCButtonFrameLockLayout(LCButtonFrame, true)
-			LazyCrafter_Vars.unlocked = true
-	  elseif msg == "lock" then
-	  	LCButtonFrameUnlock(LCButtonFrame, false)
-			LCButtonFrameLockLayout(LCButtonFrame, false)
-			LazyCrafter_Vars.unlocked = false
-	  end
-	end 
 end 
 
 function LCButtonFrame:SPELL_UPDATE_COOLDOWN()
 	if self:IsShown() then
-		for spellID, professionID in next, db do
-			if onCooldown(spellID) then
-				buttons[spellID]:Hide()
-			elseif not buttons[spellID] then
-				LCButtonskill(skillName, skillProperties)
-			end
+		for k, button in next, buttons do
+			local cooldown = onCooldown(button.spellID)
+			if cooldown and not button.Filtered then
+				button.Filtered = true
+				button:Hide()
+			elseif not cooldown and button.Filtered then
+				button.Filtered = false
+				button:Show()
+			end 
 		end
 		updatePositions()
 	end
 end 
 
-function LCButtonFrame:PLAYER_ALIVE()
-	self:Show()
-end 
-
-function LCButtonFrame:PLAYER_DEAD()
-	self:Hide()
-end 
+function LCButtonFrame:PLAYER_ALIVE() self:Show() end 
+function LCButtonFrame:PLAYER_DEAD() self:Hide() end 
+function LCButtonFrame:PLAYER_REGEN_DISABLED() self:Hide() end 
+function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
+function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
+function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
+function LCButtonFrame:SKILL_LINES_CHANGED() checkProfessionChange() end 
 
 --------------------------------------------
+
+SLASH_LAZYCRAFTER1 = "/lc"
+SLASH_LAZYCRAFTER2 = "/lazycrafter"
+SlashCmdList["LAZYCRAFTER"] = function(msg, editbox)
+	if not msg:match("%S") then 
+		print("Slash command usage for '/lc' or '/lazycrafter':")
+		print("/lc unlock - Move the bar around to wherever you want")
+		print("/lc lock - Locks the bar in place")
+		print("/lc clear - Removes all buttons from your bar")
+	end
+
+	if msg == "unlock" then
+		LCButtonFrameUnlock(LCButtonFrame, true)
+		LCButtonFrameLockLayout(LCButtonFrame, true)
+		LazyCrafter_Vars.unlocked = true
+	elseif msg == "lock" then
+		LCButtonFrameUnlock(LCButtonFrame, false)
+		LCButtonFrameLockLayout(LCButtonFrame, false)
+		LazyCrafter_Vars.unlocked = false
+	elseif msg == "clear" then
+		LazyCrafter_VarsPerCharacter = nil
+		LazyCrafter_VarsPerCharacter = {}
+
+		for k,button in pairs(buttons) do
+			button:Hide()
+		end
+		buttons = nil
+		buttons = {}
+		updatePositions()
+	end
+end 

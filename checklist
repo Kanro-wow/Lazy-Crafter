@@ -1,25 +1,9 @@
-Check:
-if Dead
-if Taxi
-if In Group
-
-Detect player profession, hide other 
-
-Add ALL the spells
-
-Saving in SavedVariable
-
 Interface:
-	Moveable Frame
-		-Save and place in Global Variable
-	Checkable in Tradeskill Window
-
-	Readjust frame on amount of buttons and buttons
-
 	Counter of casts
 			3,7,14 day color indication
 		- if 0 cast, REDFUCKINGNUKES
 	Tooltip
+	
 
 
 Addon 2:
