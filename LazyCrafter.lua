@@ -3,16 +3,15 @@ local db = {}-- First aid, id 158741	-- Tailoring	[168835] = 158758,	[125523] = 
 --------------------------------------------
 
 local buttons = {}
-frameskillModded = false
-local intents=1
 
-local backdropFrame = {	bgFile = [[Interface\BUTTONS\WHITE8X8]], tile = false, tileSize = 0, insets = { left = -intents, right = -intents, top = -intents, bottom = -intents}}
+local backdropFrame = {	bgFile = [[Interface\BUTTONS\WHITE8X8]], tile = false, tileSize = 0, insets = { left = 1, right = 1, top = 1, bottom = 1}}
 local backdropButton = { bgFile = [[Interface\BUTTONS\WHITE8X8]], edgeFile = [[Interface\BUTTONS\WHITE8X8]], edgeSize = 1, tile = false, tileSize = 0, insets = { left = 0, right = 0, top = 0, bottom = 0}}
 
 --------------------------------------------
 
 local LCButtonFrame = CreateFrame("Frame","LCButtonFrame",UIParent)
 LCButtonFrame:RegisterEvent("PLAYER_LOGIN")
+LCButtonFrame:RegisterEvent("QUEST_LOG_UPDATE")
 
 --------------------------------------------
 
@@ -32,12 +31,13 @@ local function updatePositions()
 			lastButton = button
 		end
 	end
-	print(visibleButtonCount)
 	if visibleButtonCount > 0 then
 		LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
 		LCButtonFrame:Show()
+		LCButtonFrame.empty = false
 	else
 		LCButtonFrame:Hide()
+		LCButtonFrame.empty = true
 	end
 end
 
@@ -68,25 +68,21 @@ end
 
 --------------------------------------------
 
-local function spellIDFromRecipeLink(str)
+local function resetCooldowns()
 
-	local s = {}; local i = 1
-	local t = {}; local j = 1
-	for str in string.gmatch(str, "([^%:]+)") do s[i] = str; i=i+1 end
-	str = s[2]
-	for str in string.gmatch(str, "([^%D]+)") do t[j] = str; j=j+1 end
-	return t[1]
+end
+
+--------------------------------------------
+
+local function spellIDFromRecipeLink(str)
+	return string.match(str, '|H%a+:(%d+)')
 end
 
 --------------------------------------------
 
 local function LCCraftItem(self)
-	for i=1,GetNumTradeSkills()do
-		local craftName,_,_=GetTradeSkillInfo(i)
-		if craftName==self.skillName then
-			DoTradeSkill(i,1)
-		end
-	end
+	SelectTradeSkill(self.skillIndex)
+	DoTradeSkill(self.skillIndex)
 end
 
 --------------------------------------------
@@ -96,14 +92,22 @@ local function OpenTradeSkill(self)
 		CastSpellByName(self.professionName)
 	else
 	end
+
+	for i=1,GetNumTradeSkills()do
+		local craftName,_,_=GetTradeSkillInfo(i)
+		if craftName==self.skillName then
+			self.skillIndex = i
+			return
+		end
+	end
 end
 
 --------------------------------------------
 
-local function createButton(buttonID)
+local function createButton()
 	buttonID = 1
-	for k in next, buttons do
-		buttonID = buttonID + 1
+	for _ in next, buttons do 
+		buttonID = buttonID + 1 
 	end
 
 	local button = CreateFrame("Button", "LC_"..buttonID, LCButtonFrame, "SecureActionButtonTemplate")
@@ -135,14 +139,15 @@ end
 
 --------------------------------------------
 
-local function LCSkillButton(skill, buttonCount) 
-	local button = createButton(buttonCount)
+local function LCSkillButton(skill) 
+	local button = createButton(skill.spellID)
 
 	button.skillName = skill.name
 	button.spellID = skill.spellID
 	button.buttonID = buttonID
 	button.professionName = skill.professionName
 	button.icon:SetTexture(skill.icon)
+
 	button:SetScript("PreClick", OpenTradeSkill)
 	button:SetScript("OnClick", LCCraftItem)
 
@@ -168,10 +173,12 @@ end
 local function LCAdd()
 	local index 											= GetTradeSkillSelectionIndex()
 	local skillName,_,_,_,skillType 	= GetTradeSkillInfo(index)
-	local skillIcon 									= GetTradeSkillIcon(index)
-	local hyperLink 									= GetTradeSkillRecipeLink(index)
-	local professionName 							= GetTradeSkillLine()
-	local spellID 										= spellIDFromRecipeLink(GetTradeSkillRecipeLink(index))
+	local reagents = {}
+	spellID = spellIDFromRecipeLink(GetTradeSkillRecipeLink(index))
+
+	for i=1,GetTradeSkillNumReagents(index) do
+		reagents[i] = {GetTradeSkillReagentInfo(index, i)}
+	end
 
 	if LazyCrafter_VarsPerCharacter[skillName] then
 		LazyCrafter_VarsPerCharacter[skillName] = nil
@@ -179,14 +186,18 @@ local function LCAdd()
 		buttons[skillName] = nil
 	else
 		LazyCrafter_VarsPerCharacter[skillName] = {
-			icon = skillIcon,
+			icon = GetTradeSkillIcon(index),
 			name = skillName,
-			professionName = professionName,
+			professionName = GetTradeSkillLine(),
 			spellID = spellID,
+			reagents = reagents
 		}
 
-		LCSkillButton(LazyCrafter_VarsPerCharacter[skillName], buttonCount) 
-		
+		LCSkillButton(LazyCrafter_VarsPerCharacter[skillName]) 
+
+		if onCooldown(spellID) then
+			print("LazyCrafter: Button added. Because it is on cooldown it will not be shown until it becomes available again.")
+		end
 	end
 	updatePositions()
 end
@@ -194,40 +205,30 @@ end
 --------------------------------------------
 
 local function createButtonFrameskill()
-	if (frameskillModded) then
-		return
-	end
-	
-	if (TradeSkillFrame) then
-		frameskillModded = true
-		local button = CreateFrame("BUTTON", "LC_Check", TradeSkillDetailScrollChildFrame, "UIPanelButtonTemplate");
-		button:SetPoint("TOPRIGHT", "TradeSkillDetailScrollChildFrame", "TOPRIGHT", -10, -24);
-		button:SetHeight (16)
-		button:SetText("Lazy Crafter")
-		button:SetNormalFontObject(_G["GameFontNormalSmall"])
-		button:SetHighlightFontObject(_G["GameFontNormalSmall"])
-		button:SetDisabledFontObject(_G["GameFontNormalSmall"])
-		button:RegisterEvent("TRADE_SKILL_SHOW")
+	local button = CreateFrame("BUTTON", "LC_Check", TradeSkillDetailScrollChildFrame, "UIPanelButtonTemplate");
+	button:SetPoint("TOPRIGHT", "TradeSkillDetailScrollChildFrame", "TOPRIGHT", -10, -24);
+	button:SetHeight (16)
+	button:SetText("Lazy Crafter")
+	button:SetNormalFontObject(_G["GameFontNormalSmall"])
+	button:SetHighlightFontObject(_G["GameFontNormalSmall"])
+	button:SetDisabledFontObject(_G["GameFontNormalSmall"])
+	button:RegisterEvent("TRADE_SKILL_SHOW")
 
-		button:SetScript ("OnClick", LCAdd)
-		button:SetScript("OnEvent", function() 
-			if IsTradeSkillGuild() or IsTradeSkillLinked() then
-				button:Hide()
-			else
-				button:Show()
-			end
-		end)
-	else
-	end
+	button:SetScript ("OnClick", LCAdd)
+	button:SetScript("OnEvent", function() 
+		if IsTradeSkillGuild() or IsTradeSkillLinked() then
+			button:Hide()
+		else
+			button:Show()
+		end
+	end)
 end
 
 local function createButtons()
 	if LazyCrafter_VarsPerCharacter then
-		local buttonCount = 1
 		for skillName, skill in next, LazyCrafter_VarsPerCharacter do
 			if not buttons[skillName] then
-				button = LCSkillButton(skill, buttonCount)
-				buttonCount = buttonCount + 1
+				button = LCSkillButton(skill)
 			else
 				button:Show()
 			end
@@ -294,7 +295,6 @@ function LCButtonFrame:ADDON_LOADED(addon)
 end 
 
 function LCButtonFrame:PLAYER_LOGIN()
-
 	checkProfessionChange()
 
 	if not LazyCrafter_Vars then
@@ -326,38 +326,55 @@ function LCButtonFrame:PLAYER_LOGIN()
 
 	LCButtonFrameLockLayout(self, LazyCrafter_Vars.unlocked)
 
-	local eventsTable = {"PLAYER_REGEN_DISABLED","PLAYER_REGEN_ENABLED","PLAYER_ENTERING_WORLD","SPELL_UPDATE_COOLDOWN","PLAYER_ALIVE","PLAYER_DEAD","ADDON_LOADED","SKILL_LINES_CHANGED"}
+	local eventsTable = {"PLAYER_REGEN_DISABLED","PLAYER_REGEN_ENABLED","PLAYER_ENTERING_WORLD","SPELL_UPDATE_COOLDOWN","PLAYER_ALIVE","PLAYER_DEAD","ADDON_LOADED","SKILL_LINES_CHANGED","CHAT_MSG_TRADESKILLS"}
 	
 	for k,v in next, eventsTable do
 		self:RegisterEvent(v)
 	end
 	
 	self:Show()
+
 end 
 
 function LCButtonFrame:SPELL_UPDATE_COOLDOWN()
+	local change = false
 	if self:IsShown() then
 		for k, button in next, buttons do
 			local cooldown = onCooldown(button.spellID)
 			if cooldown and not button.Filtered then
 				button.Filtered = true
 				button:Hide()
+				change = true
 			elseif not cooldown and button.Filtered then
 				button.Filtered = false
 				button:Show()
+				change = true
 			end 
 		end
-		updatePositions()
+		if change then 
+			updatePositions()
+		end
 	end
+end 
+
+function LCButtonFrame:QUEST_LOG_UPDATE()
+	if GetQuestResetTime() > 0 then
+		self:UnregisterEvent("QUEST_LOG_UPDATE")
+		self.after = C_Timer.After(GetQuestResetTime()+1, resetCooldowns())
+	end
+end
+
+function LCButtonFrame:CHAT_MSG_TRADESKILLS()
+	print("fired")
 end 
 
 function LCButtonFrame:PLAYER_ALIVE() self:Show() end 
 function LCButtonFrame:PLAYER_DEAD() self:Hide() end 
-function LCButtonFrame:PLAYER_REGEN_DISABLED() self:Hide() end 
-function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
-function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
-function LCButtonFrame:PLAYER_REGEN_ENABLED() self:Show() end 
+function LCButtonFrame:PLAYER_REGEN_DISABLED() self:Hide() end
 function LCButtonFrame:SKILL_LINES_CHANGED() checkProfessionChange() end 
+function LCButtonFrame:PLAYER_REGEN_ENABLED() if not LCButtonFrame.empty then self:Show() end end
+function LCButtonFrame:PLAYER_REGEN_ENABLED() if not LCButtonFrame.empty then self:Show() end end
+function LCButtonFrame:PLAYER_REGEN_ENABLED() if not LCButtonFrame.empty then self:Show() end end
 
 --------------------------------------------
 
