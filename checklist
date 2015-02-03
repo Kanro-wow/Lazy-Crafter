@@ -2,8 +2,15 @@ Interface:
 	Counter of casts
 			3,7,14 day color indication
 		- if 0 cast, REDFUCKINGNUKES
-	Tooltip
-	
+
+
+on hide
+	-combat
+	-dead
+	-when not in garrison
+
+buttonsize
+	-slider
 
 
 Addon 2:

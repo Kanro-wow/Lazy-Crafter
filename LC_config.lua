@@ -1,23 +1,23 @@
 local panel
 local backupSettings
 panel = CreateFrame("Frame", "LC_Panel", UIParent)
-panel.name = "One Click Cooldown"
+panel.name = "Lazy Crafter"
 
-panel.okay = function(self) 
+panel.okay = function(self)
 	backupSettings = LazyCrafter_Vars
 end
 
-panel.cancel = function(self)  
+panel.cancel = function(self)
 	LazyCrafter_Vars = backupSettings
 end
 
-panel.defaults = function(self)  
+panel.defaults = function(self)
 	LazyCrafter_Vars = backupSettings
 end
 
-panel.refresh = function(self)
+panel:SetScript("OnShow", function()
 	myCheckButton = CreateFrame("CheckButton", "myCheckButton_GlobalName", LC_Panel, "ChatConfigCheckButtonTemplate");
 	myCheckButton:SetPoint("TOPLEFT", 200, -65);
-end
+end)
 
 InterfaceOptions_AddCategory(panel)
