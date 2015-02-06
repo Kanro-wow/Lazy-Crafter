@@ -99,8 +99,15 @@ end
 --------------------------------------------
 
 local function LCCraftItem(self)
-	SelectTradeSkill(self.skillIndex)
-	DoTradeSkill(self.skillIndex)
+	for i=1,GetNumTradeSkills()do
+		local craftName,_,_=GetTradeSkillInfo(i)
+		if craftName==self.skillName then
+			self.skillIndex = i
+			DoTradeSkill(self.skillIndex)
+			SelectTradeSkill(self.skillIndex)
+			return
+		end
+	end
 end
 
 --------------------------------------------
@@ -110,13 +117,7 @@ local function OpenTradeSkill(self)
 		CastSpellByName(self.professionName)
 	end
 
-	for i=1,GetNumTradeSkills()do
-		local craftName,_,_=GetTradeSkillInfo(i)
-		if craftName==self.skillName then
-			self.skillIndex = i
-			return
-		end
-	end
+
 end
 
 --------------------------------------------
@@ -136,7 +137,7 @@ local function createButton()
 		buttonID = buttonID + 1
 	end
 
-	local button = CreateFrame("Button", "LC_"..buttonID, LCButtonFrame, "SecureActionButtonTemplate")
+	local button = CreateFrame("Button", "LC_"..buttonID, LCButtonFrame)
 	button:SetSize(LazyCrafter_Vars.buttonSize,LazyCrafter_Vars.buttonSize)
 
 	local icon = button:CreateTexture(nil, "ARTWORK")
@@ -277,6 +278,7 @@ end
 --------------------------------------------
 
 local function LCButtonFrameUnlock(self, state)
+
 	self:EnableMouse(state)
 	self:SetMovable(state)
 	self.Unlocked = state
@@ -313,18 +315,13 @@ end)
 
 function LCButtonFrame:PLAYER_ENTERING_WORLD()
 	createButtonFrameskill()
-	if IsInInstance() then
-		self:Hide()
-	else
-		self:Show()
-	end
 end
 
 function LCButtonFrame:PLAYER_LOGIN()
 	checkProfessionChange()
 
 	if not LazyCrafter_Vars then
-		LazyCrafter_Vars = {x = 200, y = 200, hideOnCombat = true, hideOnInstance = true, OpenTradeSkillWindow = false, unlocked = false, buttonSize = 32	}
+		LazyCrafter_Vars = {x = 200, y = 200, OpenTradeSkillWindow = false, unlocked = false, buttonSize = 32	}
 	end
 
 	if not LazyCrafter_VarsPerCharacter then

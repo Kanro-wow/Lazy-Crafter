@@ -9,8 +9,17 @@ on hide
 	-dead
 	-when not in garrison
 
+anchor
+	left, right etc.
+
+grow up or sideways :)
+
 buttonsize
-	-slider
+	-slider (or textfield)
+
+disable addon
+
+
 
 
 Addon 2:
