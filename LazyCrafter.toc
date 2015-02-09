@@ -5,4 +5,5 @@
 ## Version: 0.1
 ## SavedVariables: LazyCrafter_Vars
 ## SavedVariablesPerCharacter: LazyCrafter_VarsPerCharacter, LazyCrafter_Professions
+## Dependencies: Blizzard_TradeSkillUI
 LazyCrafter.lua
