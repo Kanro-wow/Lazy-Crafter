@@ -3,16 +3,17 @@ local db = {}-- First aid, id 158741	-- Tailoring	[168835] = 158758,	[125523] = 
 --------------------------------------------
 
 local buttons = {}
-frameskillModded = false
+local reagents = {}
+local frameskillModded = false
 
 local backdropFrame = {	bgFile = [[Interface\BUTTONS\WHITE8X8]], tile = false, tileSize = 0, insets = { left = 1, right = 1, top = 1, bottom = 1}}
 local backdropButton = { bgFile = [[Interface\BUTTONS\WHITE8X8]], edgeFile = [[Interface\BUTTONS\WHITE8X8]], edgeSize = 1, tile = false, tileSize = 0, insets = { left = 0, right = 0, top = 0, bottom = 0}}
 
 --------------------------------------------
 
-local LCButtonFrame = CreateFrame("Frame","LCButtonFrame",UIParent)
-LCButtonFrame:RegisterEvent("PLAYER_LOGIN")
-LCButtonFrame:RegisterEvent("QUEST_LOG_UPDATE")
+local LazyCrafter_Bar = CreateFrame("Frame","LazyCrafter_Bar",UIParent)
+LazyCrafter_Bar:RegisterEvent("PLAYER_LOGIN")
+LazyCrafter_Bar:RegisterEvent("QUEST_LOG_UPDATE")
 
 --------------------------------------------
 
@@ -25,7 +26,7 @@ local function updatePositions()
 			visibleButtonCount = visibleButtonCount + 1
 			button:ClearAllPoints()
 			if visibleButtonCount == 1 then
-				button:SetPoint("BOTTOMLEFT",LCButtonFrame)
+				button:SetPoint("BOTTOMLEFT",LazyCrafter_Bar)
 			else
 				button:SetPoint("LEFT",lastButton,"RIGHT",4,0)
 			end
@@ -33,12 +34,12 @@ local function updatePositions()
 		end
 	end
 	if visibleButtonCount > 0 then
-		LCButtonFrame:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
-		LCButtonFrame:Show()
-		LCButtonFrame.empty = false
+		LazyCrafter_Bar:SetWidth(visibleButtonCount*(LazyCrafter_Vars.buttonSize+4)-4)
+		LazyCrafter_Bar:Show()
+		LazyCrafter_Bar.empty = false
 	else
-		LCButtonFrame:Hide()
-		LCButtonFrame.empty = true
+		LazyCrafter_Bar:Hide()
+		LazyCrafter_Bar.empty = true
 	end
 end
 
@@ -105,7 +106,9 @@ end
 --------------------------------------------
 
 local function OpenTradeSkill(self)
-	CastSpellByName(self.professionName)
+	if not(TradeSkillFrame and TradeSkillFrame:IsShown() and CURRENT_TRADESKILL==self.professionName) then
+		CastSpellByName(self.professionName)
+	end
 end
 
 --------------------------------------------
@@ -118,9 +121,34 @@ end
 
 --------------------------------------------
 
+local function buttonCount(skillName)
+	local count = math.huge
+
+	for k, v in next, LazyCrafter_VarsPerCharacter[skillName].reagents do
+		local craftCount = math.floor(GetItemCount(k,true)/v)
+		if craftCount < count then
+			count = craftCount
+		end
+	end
+	return count
+end
+
+--------------------------------------------
+
+local function updateButtonCount()
+	for buttonName, button in next, buttons do
+		for k, v in next, button do
+			print(k, v)
+		end
+		button:SetText(buttonCount(buttonName))
+	end
+end
+
+--------------------------------------------
+
 
 local function createButton()
-	local button = CreateFrame("Button", "LC_CraftButton", LCButtonFrame)
+	local button = CreateFrame("Button", "LC_CraftButton", LazyCrafter_Bar)
 	button:SetSize(LazyCrafter_Vars.buttonSize,LazyCrafter_Vars.buttonSize)
 
 	local icon = button:CreateTexture(nil, "ARTWORK")
@@ -146,8 +174,6 @@ local function createButton()
 
 	button:SetNormalFontObject(_G["GameFontNormal"])
 
-	button:SetText("123")
-
 	button:SetScript("OnLeave", GameTooltip_Hide)
 	button:SetScript("OnEnter", showButtonTooltip)
 	return button
@@ -167,13 +193,15 @@ local function LCSkillButton(skill)
 	button:SetScript("OnClick", CraftItem)
 	-- button:SetScript("PostClick", CraftItem)
 
+	button:SetText(buttonCount(skill.name))
+
 	if onCooldown(skill.spellID) then
 		button.Filtered = true
 	else
 		button.Filtered = false
 	end
 
-	if LCButtonFrame.Unlocked then
+	if LazyCrafter_Bar.Unlocked then
 		button:Hide()
 	end
 
@@ -184,15 +212,8 @@ end
 --------------------------------------------
 
 local function LCAdd()
-	local index 											= GetTradeSkillSelectionIndex()
-	local skillName,_,_,_,skillType 	= GetTradeSkillInfo(index)
-	local reagents = {}
-	spellID = string.match(GetTradeSkillRecipeLink(index), '|H%a+:(%d+)')
-
-
-	for i=1,GetTradeSkillNumReagents(index) do
-		reagents[i] = {GetTradeSkillReagentInfo(index, i)}
-	end
+	local index = GetTradeSkillSelectionIndex()
+	local skillName,_,_,_,skillType = GetTradeSkillInfo(index)
 
 	if LazyCrafter_VarsPerCharacter[skillName] then
 		print("LazyCrafter: Removed",skillName..".")
@@ -200,13 +221,29 @@ local function LCAdd()
 		buttons[skillName]:Hide()
 		buttons[skillName] = nil
 	else
+		local tools = {}
+		local insertReagents = {}
+		local spellID = string.match(GetTradeSkillRecipeLink(index), '|H%a+:(%d+)')
+
+		local toolsRaw = {GetTradeSkillTools(index)}
+
+		if toolsRaw then
+			for i=1,#toolsRaw/2 do
+				tools[i] = toolsRaw[i*2-1]
+			end
+		end
+
+		for i=1,GetTradeSkillNumReagents(index) do
+			_,_,insertReagents[GetTradeSkillReagentInfo(index, i)] = GetTradeSkillReagentInfo(index, i)
+		end
+
 		LazyCrafter_VarsPerCharacter[skillName] = {
-			icon = GetTradeSkillIcon(index),
-			tools = {GetTradeSkillTools(index)},
+			spellID = spellID,
 			name = skillName,
 			professionName = GetTradeSkillLine(),
-			spellID = spellID,
-			reagents = reagents
+			tools = tools,
+			reagents = insertReagents,
+			icon = GetTradeSkillIcon(index),
 		}
 
 		LCSkillButton(LazyCrafter_VarsPerCharacter[skillName])
@@ -277,6 +314,10 @@ local function createButtons()
 		for skillName, skill in next, LazyCrafter_VarsPerCharacter do
 			if not buttons[skillName] then
 				button = LCSkillButton(skill)
+
+				for k, v in next, LazyCrafter_VarsPerCharacter[skillName].reagents do
+					reagents[k] = GetItemCount(k,true)
+				end
 			else
 				button:Show()
 			end
@@ -292,7 +333,7 @@ end
 
 --------------------------------------------
 
-local function LCButtonFrameUnlock(self, state)
+local function LazyCrafter_BarUnlock(self, state)
 
 	self:EnableMouse(state)
 	self:SetMovable(state)
@@ -301,7 +342,7 @@ end
 
 --------------------------------------------
 
-local function LCButtonFrameLockLayout(self, state)
+local function LazyCrafter_BarLockLayout(self, state)
 	if state then
 		self:SetBackdropColor(80/255, 189/255, 220/255)
 		for k,v in next, buttons do
@@ -319,7 +360,7 @@ end
 
 --------------------------------------------
 
-LCButtonFrame:SetScript("OnEvent", function(self, event, ...)
+LazyCrafter_Bar:SetScript("OnEvent", function(self, event, ...)
 	if self[event] then
 		self[event](self,...)
 	else
@@ -327,16 +368,15 @@ LCButtonFrame:SetScript("OnEvent", function(self, event, ...)
 	end
 end)
 
-function LCButtonFrame:PLAYER_ENTERING_WORLD()
+function LazyCrafter_Bar:PLAYER_ENTERING_WORLD()
 	createButtonFrameskill()
 end
 
-function LCButtonFrame:PLAYER_LOGIN()
+function LazyCrafter_Bar:PLAYER_LOGIN()
 	print(IsAddOnLoaded("Blizzard_TradeSkillUI"))
 	for k,v in next, {GetProfessions()} do
 		GetProfessionInfo(v)
 	end
-
 
 	checkProfessionChange()
 
@@ -367,7 +407,7 @@ function LCButtonFrame:PLAYER_LOGIN()
 	self:SetPoint("BOTTOMLEFT", LazyCrafter_Vars.x,LazyCrafter_Vars.y)
 	self:SetBackdrop(backdropFrame)
 
-	LCButtonFrameLockLayout(self, LazyCrafter_Vars.unlocked)
+	LazyCrafter_BarLockLayout(self, LazyCrafter_Vars.unlocked)
 
 	for _,event in next, {
 		"PLAYER_REGEN_DISABLED",
@@ -377,62 +417,76 @@ function LCButtonFrame:PLAYER_LOGIN()
 		"PLAYER_DEAD",
 		"ADDON_LOADED",
 		"SKILL_LINES_CHANGED",
-		"CHAT_MSG_TRADESKILLS"
+		"CHAT_MSG_TRADESKILLS",
+		"BAG_UPDATE_DELAYED",
 	} do
 		self:RegisterEvent(event)
 	end
 
 	self:Show()
-
 end
 
-function LCButtonFrame:QUEST_LOG_UPDATE()
+function LazyCrafter_Bar:QUEST_LOG_UPDATE()
 	if GetQuestResetTime() > 0 then
 		self:UnregisterEvent("QUEST_LOG_UPDATE")
 		C_Timer.After(GetQuestResetTime(), function()
-			checkCooldowns(LCButtonFrame)
+			checkCooldowns(LazyCrafter_Bar)
 		end)
 	end
 end
 
+function LazyCrafter_Bar:BAG_UPDATE_DELAYED()
+	for reagent, reagentCount in next, reagents do
+		print(reagent)
+		print(reagentCount, GetItemCount(reagent, true))
+		if GetItemCount(reagent, true) ~= reagentCount then
+			print("updating count")
+			updateButtonCount()
+			return
+		end
+	end
+
+	print("not updating count")
+end
+
 local _TRADESKILL_LOG_FIRSTPERSON = string.gsub(TRADESKILL_LOG_FIRSTPERSON,"%%s",".+")
-function LCButtonFrame:CHAT_MSG_TRADESKILLS(message)
+function LazyCrafter_Bar:CHAT_MSG_TRADESKILLS(message)
 	if string.match(message, _TRADESKILL_LOG_FIRSTPERSON) then
 		checkCooldowns(self)
 	end
 end
 
-function LCButtonFrame:PLAYER_REGEN_ENABLED()
-	if not LCButtonFrame.empty then
+function LazyCrafter_Bar:PLAYER_REGEN_ENABLED()
+	if not LazyCrafter_Bar.empty then
 		self:Show()
 	end
 end
 
-function LCButtonFrame:PLAYER_REGEN_DISABLED()
-	if not LCButtonFrame.empty then
+function LazyCrafter_Bar:PLAYER_REGEN_DISABLED()
+	if not LazyCrafter_Bar.empty then
 		self:Hide()
 	end
 end
 
-function LCButtonFrame:PLAYER_ALIVE()
-	if not LCButtonFrame.empty then
+function LazyCrafter_Bar:PLAYER_ALIVE()
+	if not LazyCrafter_Bar.empty then
 		self:Show()
 	end
 end
 
-function LCButtonFrame:PLAYER_DEAD()
-	if not LCButtonFrame.empty then
+function LazyCrafter_Bar:PLAYER_DEAD()
+	if not LazyCrafter_Bar.empty then
 		self:Hide()
 	end
 end
 
-function LCButtonFrame:ADDON_LOADED(addon)
+function LazyCrafter_Bar:ADDON_LOADED(addon)
 	if addon == "Blizzard_TradeSkillUI" then
 		createButtonFrameskill()
 	end
 end
 
-function LCButtonFrame:SKILL_LINES_CHANGED(addon)
+function LazyCrafter_Bar:SKILL_LINES_CHANGED(addon)
 	checkProfessionChange()
 end
 
@@ -450,13 +504,13 @@ SlashCmdList["LAZYCRAFTER"] = function(msg, editbox)
 
 	if msg == "unlock" then
 		print([[LazyCrafter is now unlocked. Type "/lc lock" to lock the bar.]])
-		LCButtonFrameUnlock(LCButtonFrame, true)
-		LCButtonFrameLockLayout(LCButtonFrame, true)
+		LazyCrafter_BarUnlock(LazyCrafter_Bar, true)
+		LazyCrafter_BarLockLayout(LazyCrafter_Bar, true)
 		LazyCrafter_Vars.unlocked = true
 	elseif msg == "lock" then
 		print([[LazyCrafter is now locked. Type "/lc unlock" to unlock the bar.]])
-		LCButtonFrameUnlock(LCButtonFrame, false)
-		LCButtonFrameLockLayout(LCButtonFrame, false)
+		LazyCrafter_BarUnlock(LazyCrafter_Bar, false)
+		LazyCrafter_BarLockLayout(LazyCrafter_Bar, false)
 		LazyCrafter_Vars.unlocked = false
 	elseif msg == "clear" then
 		print([[LazyCrafter has now removed all crafts from the bar.]])
