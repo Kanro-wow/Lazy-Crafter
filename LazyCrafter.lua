@@ -54,7 +54,7 @@ local function checkProfessionChange()
 
 	for skill,button in next, LazyCrafter_VarsPerCharacter do
 		if not tContains(professions, button.professionName) then
-			print("LazyCrafter: Removed",button.skillName,"from your LazyCrafter Bar, because you changed professions!")
+			print("LC: Removed",button.skillName,"from your LazyCrafter Bar, because you changed professions!")
 			LazyCrafter_VarsPerCharacter[k] = nil
 			buttons[skill]:Hide()
 			buttons[skill] = nil
@@ -137,9 +137,6 @@ end
 
 local function updateButtonCount()
 	for buttonName, button in next, buttons do
-		for k, v in next, button do
-			print(k, v)
-		end
 		button:SetText(buttonCount(buttonName))
 	end
 end
@@ -207,6 +204,8 @@ local function LCSkillButton(skill)
 
 	buttons[button.skillName] = button
 
+
+
 end
 
 --------------------------------------------
@@ -225,23 +224,28 @@ local function LCAdd()
 		local insertReagents = {}
 		local spellID = string.match(GetTradeSkillRecipeLink(index), '|H%a+:(%d+)')
 
-		local toolsRaw = {GetTradeSkillTools(index)}
+		-- local toolsRaw = {GetTradeSkillTools(index)}
+		-- if toolsRaw then
+		-- 	for i=1,#toolsRaw/2 do
+		-- 		tools[i] = toolsRaw[i*2-1]
+		-- 	end
 
-		if toolsRaw then
-			for i=1,#toolsRaw/2 do
-				tools[i] = toolsRaw[i*2-1]
-			end
+		local anvilRequired = false
+		if tContains({GetTradeSkillTools(index)}, "Anvil") then
+			anvilRequired = true
 		end
 
 		for i=1,GetTradeSkillNumReagents(index) do
-			_,_,insertReagents[GetTradeSkillReagentInfo(index, i)] = GetTradeSkillReagentInfo(index, i)
+			local reagent = GetTradeSkillReagentInfo(index, i)
+			_,_,insertReagents[reagent] = GetTradeSkillReagentInfo(index, i)
+			reagents[reagent] = GetItemCount(reagent,true)
 		end
 
 		LazyCrafter_VarsPerCharacter[skillName] = {
 			spellID = spellID,
 			name = skillName,
 			professionName = GetTradeSkillLine(),
-			tools = tools,
+			anvilRequired = anvilRequired,
 			reagents = insertReagents,
 			icon = GetTradeSkillIcon(index),
 		}
@@ -249,9 +253,9 @@ local function LCAdd()
 		LCSkillButton(LazyCrafter_VarsPerCharacter[skillName])
 
 		if onCooldown(spellID) then
-			print("LazyCrafter: Button added. Because it is on cooldown it will not be shown until it becomes available again.")
+			print("LC: Button added. It's on cooldown, so it is hidden.")
 		else
-			print("LazyCrafter: Added",skillName..".")
+			print("LC: Added",skillName..".")
 		end
 	end
 
@@ -373,7 +377,6 @@ function LazyCrafter_Bar:PLAYER_ENTERING_WORLD()
 end
 
 function LazyCrafter_Bar:PLAYER_LOGIN()
-	print(IsAddOnLoaded("Blizzard_TradeSkillUI"))
 	for k,v in next, {GetProfessions()} do
 		GetProfessionInfo(v)
 	end
@@ -387,6 +390,18 @@ function LazyCrafter_Bar:PLAYER_LOGIN()
 	if not LazyCrafter_VarsPerCharacter then
 		LazyCrafter_VarsPerCharacter = {}
 	end
+
+	if self.BlizzardTradeSkillFrame ~= nil then
+		if (not IsAddOnLoaded("Blizzard_TradeSkillUI")) then
+			LoadAddOn("Blizzard_TradeSkillUI");
+		end
+		TradeSkillFrame = self.BlizzardTradeSkillFrame
+		TradeSkillFrame_Show = self.BlizzardTradeSkillFrame_Show
+		self.BlizzardTradeSkillFrame = nil
+		self.BlizzardTradeSkillFrame_Show = nil
+	end
+
+
 
 	createButtons()
 
@@ -437,16 +452,11 @@ end
 
 function LazyCrafter_Bar:BAG_UPDATE_DELAYED()
 	for reagent, reagentCount in next, reagents do
-		print(reagent)
-		print(reagentCount, GetItemCount(reagent, true))
 		if GetItemCount(reagent, true) ~= reagentCount then
-			print("updating count")
 			updateButtonCount()
 			return
 		end
 	end
-
-	print("not updating count")
 end
 
 local _TRADESKILL_LOG_FIRSTPERSON = string.gsub(TRADESKILL_LOG_FIRSTPERSON,"%%s",".+")
@@ -489,6 +499,8 @@ end
 function LazyCrafter_Bar:SKILL_LINES_CHANGED(addon)
 	checkProfessionChange()
 end
+
+
 
 --------------------------------------------
 
