@@ -1,4 +1,4 @@
-## Interface: 60000
+## Interface: 60200
 ## Title : LazyCrafter
 ## Notes: For the truely lazy crafter, add daily cooldowns to a list and click it on login
 ## Author: Kanro
